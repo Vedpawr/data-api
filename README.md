@@ -22,10 +22,19 @@ This pipeline provides:
 pip3 install requests pandas snowflake-connector-python pytz schedule
 ```
 
+### Running a python virtual env 
+Installing the required dependencies in your system can throw error or challenges. We strongly recommend you to run a virtual environment of python and then install the dependencies
+to enable a virtual env run the following command. 
+``` bash
+python3 -m venv moveworks_env
+source moveworks_env/bin/activate
+```
+install the dependencies again after this command. 
+
+
 ### Required Credentials
 1. **Moveworks API Access Token**
    - Contact your Moveworks admin for API credentials
-   - Token should have read access to analytics endpoints
 
 2. **Snowflake Account Details**
    - Account identifier (e.g., `xyz12345.us-east-1`)
