@@ -94,25 +94,25 @@ python3 main-script.py start
 ### Setup and Configuration
 ```bash
 # Initial configuration
-python3 moveworks_pipeline.py setup
+python3 main-script.py setup
 
 # Check current configuration
-python3 moveworks_pipeline.py status
+python3 main-script.py status
 
 # Reset initial load flag (allows re-running initial load)
-python3 moveworks_pipeline.py reset
+python3 main-script.py reset
 ```
 
 ### Data Loading
 ```bash
 # Historical data load (interactive date selection)
-python3 moveworks_pipeline.py initial-load
+python3 main-script.py initial-load
 
 # Run daily sync once (manual)
-python3 moveworks_pipeline.py run
+python3 main-script.py run
 
 # Start scheduled daily sync (runs continuously)
-python3 moveworks_pipeline.py start
+python3 main-script.py start
 ```
 
 ## ⚙️ Configuration Options
@@ -140,8 +140,8 @@ The pipeline stores configuration in `moveworks_config.json`. Key settings:
 ## 📁 File Structure
 
 ```
-moveworks_pipeline/
-├── moveworks_pipeline.py      # Main pipeline script
+data-api/
+├── main-script.py      # Main pipeline script
 ├── moveworks_config.json      # Configuration file (created by setup)
 ├── logs/                      # Log files directory
 │   └── moveworks_pipeline_YYYYMMDD.log
@@ -266,7 +266,7 @@ Error: Failed to create table MOVEWORKS_X
 #### Reset Everything
 ```bash
 # Reset pipeline state
-python3 moveworks_pipeline.py reset
+python3 main-script.py reset
 
 # Manual Snowflake cleanup (if needed)
 DROP TABLE IF EXISTS MOVEWORKS_CONVERSATIONS;
@@ -368,11 +368,5 @@ ORDER BY activity_date DESC, platform;
 ```
 
 ---
-
-## 📝 Version History
-
-- **v1.0**: Initial release with basic ETL functionality
-- **v1.1**: Added UPSERT support and improved error handling
-- **v1.2**: Enhanced analytics views and monitoring capabilities
 
 For questions or issues, please review the troubleshooting section or check the log files for detailed error information.
