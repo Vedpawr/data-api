@@ -19,7 +19,7 @@ This pipeline provides:
 
 ### Python Dependencies
 ```bash
-pip3 install requests pandas snowflake-connector-python pytz schedule
+pip3 install -r requirements.txt
 ```
 
 ### Running a python virtual env 
