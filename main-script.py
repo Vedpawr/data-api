@@ -926,6 +926,39 @@ class MoveworksDataPipeline:
                 ORDER BY conversation_date DESC
             """,
             
+            'V_USER_FEEDBACK' : f""" 
+                CREATE OR REPLACE VIEW V_USER_FEEDBACK AS
+                SELECT 
+                feedback_status,
+                COUNT(*) as conversation_count,
+                ROUND(
+                    (COUNT(*) * 100.0) / SUM(COUNT(*)) OVER (), 2
+                ) as feedback_percentage
+                FROM (
+                SELECT 
+                    c.ID as conversation_id,
+                    CASE 
+                        WHEN MAX(CASE WHEN i.LABEL = 'feedback' AND PARSE_JSON(i.DETAILS):detail::STRING = 'HELPFUL' THEN 1 ELSE 0 END) = 1 
+                        THEN 'Helpful'
+                        WHEN MAX(CASE WHEN i.LABEL = 'feedback' AND PARSE_JSON(i.DETAILS):detail::STRING = 'UNHELPFUL' THEN 1 ELSE 0 END) = 1 
+                        THEN 'Unhelpful'
+                        ELSE 'No feedback submitted'
+                    END as feedback_status
+                FROM MOVEWORKS_CONVERSATIONS c
+                LEFT JOIN MOVEWORKS_INTERACTIONS i 
+                    ON c.ID = i.CONVERSATION_ID
+                WHERE c.CREATED_AT IS NOT NULL
+                GROUP BY c.ID
+                ) feedback_summary
+                GROUP BY feedback_status
+                ORDER BY 
+                CASE feedback_status 
+                    WHEN 'Helpful' THEN 1 
+                    WHEN 'Unhelpful' THEN 2 
+                    WHEN 'No feedback submitted' THEN 3 
+                END;
+            """",
+
             'V_TOTAL_INTERACTIONS': f"""
                 CREATE OR REPLACE VIEW {database}.{schema}.V_TOTAL_INTERACTIONS AS
                 SELECT 
