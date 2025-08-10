@@ -1056,7 +1056,7 @@ class MoveworksDataPipeline:
                 print("\n📋 NEXT STEPS:")
                 print("   • Your historical data is now loaded")
                 print("   • Analytics views are ready for BI tools")
-                print("   • Run 'python moveworks_pipeline.py start' to begin daily sync")
+                print("   • Run 'python3 main-script.py start' to begin daily sync")
                 print(f"   • Daily sync will run at {self.config['pipeline']['schedule_time']} PST")
                 print("   • Daily sync uses UPSERT to handle duplicate IDs properly")
             else:
