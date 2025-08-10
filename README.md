@@ -46,7 +46,7 @@ install the dependencies again after this command.
 
 ### 1. Initial Setup
 ```bash
-python3 moveworks_pipeline.py setup
+python3 main-script.py setup
 ```
 This interactive setup will prompt for:
 - Moveworks API token
@@ -55,7 +55,7 @@ This interactive setup will prompt for:
 
 ### 2. Historical Data Load
 ```bash
-python3 moveworks_pipeline.py initial-load
+python3 main-script.py initial-load
 ```
 - Choose your historical date range (recommended: 30-90 days to start)
 - Loads data for: conversations, interactions, plugin-calls, plugin-resources, users
@@ -63,7 +63,7 @@ python3 moveworks_pipeline.py initial-load
 
 ### 3. Start Daily Automation
 ```bash
-python3 moveworks_pipeline.py start
+python3 main-script.py start
 ```
 - Runs daily at configured time (default: 22:00 PST)
 - Uses UPSERT operations to prevent duplicates
