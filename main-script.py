@@ -248,12 +248,25 @@ class MoveworksDataPipeline:
     def flatten_record(self, record):
         """Flatten nested fields in record"""
         flat = record.copy()
+        
+        # Debug logging (commented out for production)
+        # if record.get('id') and 'detail' in record:
+        #     print(f"\n=== DEBUG: Processing record ID {record['id']} ===")
+        #     print(f"Original record keys: {list(record.keys())}")
+        #     print(f"Detail content: {record['detail']}")
+        #     print(f"Detail type: {type(record['detail'])}")
+        
         if isinstance(flat.get("detail"), dict):
             detail = flat.pop("detail", {}) or {}
+            # print(f"Flattening detail with {len(detail)} keys: {list(detail.keys())}")
+            
             for key, value in detail.items():
                 if isinstance(value, list):
                     value = ','.join(map(str, value))
                 flat[f'detail_{key}'] = value
+                # print(f"  Created column: detail_{key} = {value}")
+        # elif flat.get("detail") is not None:
+        #     print(f"Detail is not a dict, it's: {type(flat.get('detail'))}, value: {flat.get('detail')}")
         
         # Handle external_ids array in users endpoint
         if isinstance(flat.get("external_ids"), list):
@@ -263,6 +276,7 @@ class MoveworksDataPipeline:
                     for key, value in ext_id.items():
                         flat[f'external_id_{i}_{key}'] = value
         
+        # print(f"Final flattened record keys: {list(flat.keys())}")
         return flat
 
     def fetch_data(self, endpoint, time_filter):
@@ -296,10 +310,27 @@ class MoveworksDataPipeline:
                     if not page_data:
                         break
 
-                    for record in page_data:
-                        data.append(self.flatten_record(record))
+                    # Debug logging (commented out for production)
+                    # if endpoint == 'interactions' and page_data and page_count == 0:
+                    #     first_record = page_data[0]
+                    #     print(f"\n=== FIRST RAW RECORD FROM API ===")
+                    #     print(f"Keys: {list(first_record.keys())}")
+                    #     if 'detail' in first_record:
+                    #         print(f"Detail: {first_record['detail']}")
+                    #         print(f"Detail type: {type(first_record['detail'])}")
 
-                    url = json_resp.get('@odata.nextLink')
+                    for record in page_data:
+                        flattened = self.flatten_record(record)
+                        data.append(flattened)
+                        
+                        # Debug: Early exit for testing (commented out for production)
+                        # if endpoint == 'interactions' and len(data) >= 3:
+                        #     print(f"Stopping early for debug after {len(data)} records")
+                        #     url = None  # Break the loop
+                        #     break
+
+                    if url:  # Only continue if we didn't break early
+                        url = json_resp.get('@odata.nextLink')
                     retries = 0
                     page_count += 1
 
@@ -331,6 +362,22 @@ class MoveworksDataPipeline:
 
         if data:
             df = pd.DataFrame(data)
+            
+            # Debug logging (commented out for production)
+            # if endpoint == 'interactions':
+            #     print(f"\n=== DATAFRAME AFTER API FETCH ===")
+            #     print(f"Shape: {df.shape}")
+            #     print(f"Columns: {list(df.columns)}")
+            #     
+            #     detail_cols = [col for col in df.columns if 'detail' in col.lower()]
+            #     print(f"Detail-related columns: {detail_cols}")
+            #     
+            #     if detail_cols:
+            #         print("Sample values from detail columns:")
+            #         for col in detail_cols[:5]:  # Show first 5 detail columns
+            #             sample_val = df[col].dropna().iloc[0] if not df[col].dropna().empty else "No data"
+            #             print(f"  {col}: {sample_val}")
+            
             df = self.clean_illegal_chars(df)
             logger.info(f"Ingestion complete for /{endpoint}, {len(df)} records.")
             return df
@@ -554,7 +601,12 @@ class MoveworksDataPipeline:
         """Transform DataFrame to match the expected schema"""
         df_transformed = df.copy()
         
-        # Handle the LOAD_TIMESTAMP properly - convert to Snowflake-compatible timestamp
+        # Debug logging (commented out for production)
+        # print(f"\n=== TRANSFORM DEBUG for {endpoint} ===")
+        # print(f"Input DataFrame shape: {df.shape}")
+        # print(f"Input DataFrame columns: {list(df.columns)}")
+        
+        # Handle the LOAD_TIMESTAMP properly
         current_timestamp = datetime.now()
         df_transformed['LOAD_TIMESTAMP'] = current_timestamp
         
@@ -569,15 +621,77 @@ class MoveworksDataPipeline:
             }
             
         elif endpoint == 'interactions':
-            if 'detail' in df.columns:
-                detail_cols = [col for col in df.columns if col.startswith('detail_')]
-                df_transformed['DETAILS'] = df[detail_cols].apply(
-                    lambda row: {col.replace('detail_', ''): row[col] for col in detail_cols if pd.notna(row[col])}, 
-                    axis=1
-                ).apply(lambda x: json.dumps(x) if x else None)
-            else:
-                df_transformed['DETAILS'] = None
+            # Check what detail-related columns exist
+            detail_cols = [col for col in df.columns if col.startswith('detail_')]
+            # print(f"Found detail columns: {detail_cols}")
+            
+            # Debug: Sample a few rows (commented out for production)
+            # if not df.empty:
+            #     print(f"\nSample data from first 3 rows:")
+            #     for i in range(min(3, len(df))):
+            #         row_id = df.iloc[i].get('id', f'row_{i}')
+            #         print(f"  Row {i} (ID: {row_id}):")
+            #         for col in detail_cols:
+            #             if col in df.columns:
+            #                 value = df.iloc[i].get(col)
+            #                 print(f"    {col}: {value}")
+            
+            if detail_cols:
+                # print("Processing detail columns...")
                 
+                def create_details_json(row):
+                    details_dict = {}
+                    for col in detail_cols:
+                        if pd.notna(row[col]):
+                            key = col.replace('detail_', '')
+                            details_dict[key] = row[col]
+                    
+                    if details_dict:
+                        json_str = json.dumps(details_dict)
+                        # print(f"  Created JSON for row: {json_str}")
+                        return json_str
+                    else:
+                        # print("  No valid detail data found")
+                        return None
+                
+                df_transformed['DETAILS'] = df[detail_cols].apply(create_details_json, axis=1)
+                
+            elif 'detail' in df.columns:
+                # print("Using original 'detail' column...")
+                
+                def process_original_detail(detail_val):
+                    if detail_val is not None and detail_val != {}:
+                        if isinstance(detail_val, dict):
+                            json_str = json.dumps(detail_val)
+                            # print(f"  Converted dict to JSON: {json_str}")
+                            return json_str
+                        elif isinstance(detail_val, str):
+                            # print(f"  Detail is already string: {detail_val}")
+                            return detail_val
+                        else:
+                            # print(f"  Detail is unexpected type {type(detail_val)}: {detail_val}")
+                            return str(detail_val)
+                    else:
+                        # print("  Detail is None or empty")
+                        return None
+                
+                df_transformed['DETAILS'] = df['detail'].apply(process_original_detail)
+            else:
+                # print("No detail columns found at all!")
+                df_transformed['DETAILS'] = None
+            
+            # Debug: Check the final DETAILS column (commented out for production)
+            # if 'DETAILS' in df_transformed.columns:
+            #     non_null_details = df_transformed['DETAILS'].notna().sum()
+            #     print(f"Final DETAILS column: {non_null_details} non-null values out of {len(df_transformed)}")
+            #     
+            #     # Show sample of non-null DETAILS
+            #     sample_details = df_transformed[df_transformed['DETAILS'].notna()]['DETAILS'].head(3)
+            #     if not sample_details.empty:
+            #         print("Sample DETAILS values:")
+            #         for idx, detail in sample_details.items():
+            #             print(f"  Row {idx}: {detail}")
+            
             column_mapping = {
                 'last_updated_time': 'LAST_UPDATED_AT',
                 'conversation_id': 'CONVERSATION_ID',
@@ -608,13 +722,16 @@ class MoveworksDataPipeline:
             }
             
         elif endpoint == 'plugin-resources':
-            # Fix the detail handling to create proper JSON for VARIANT column
             detail_cols = [col for col in df.columns if col.startswith('detail_')]
             if detail_cols:
                 df_transformed['DETAILS'] = df[detail_cols].apply(
                     lambda row: {col.replace('detail_', ''): row[col] for col in detail_cols if pd.notna(row[col])}, 
                     axis=1
                 ).apply(lambda x: json.dumps(x) if x else None)
+            elif 'detail' in df.columns:
+                df_transformed['DETAILS'] = df['detail'].apply(
+                    lambda x: json.dumps(x) if x is not None and x != {} else None
+                )
             else:
                 df_transformed['DETAILS'] = None
                 
@@ -660,11 +777,21 @@ class MoveworksDataPipeline:
         for api_col, schema_col in column_mapping.items():
             if api_col in df_transformed.columns:
                 result_df[schema_col] = df_transformed[api_col]
+                # print(f"Mapped {api_col} -> {schema_col}")
             else:
                 result_df[schema_col] = None
+                # print(f"Column {api_col} not found, setting {schema_col} to None")
         
-        # Add load timestamp - ensure it's a proper timestamp
+        # Add load timestamp
         result_df['LOAD_TIMESTAMP'] = pd.to_datetime(current_timestamp)
+        
+        # Debug logging (commented out for production)
+        # print(f"Final result DataFrame shape: {result_df.shape}")
+        # print(f"Final result DataFrame columns: {list(result_df.columns)}")
+        # 
+        # if endpoint == 'interactions' and 'DETAILS' in result_df.columns:
+        #     final_non_null = result_df['DETAILS'].notna().sum()
+        #     print(f"Final DETAILS column after mapping: {final_non_null} non-null values")
         
         return result_df
 
@@ -1056,7 +1183,7 @@ class MoveworksDataPipeline:
                 print("\n📋 NEXT STEPS:")
                 print("   • Your historical data is now loaded")
                 print("   • Analytics views are ready for BI tools")
-                print("   • Run 'python3 main-script.py start' to begin daily sync")
+                print("   • Run 'python moveworks_pipeline.py start' to begin daily sync")
                 print(f"   • Daily sync will run at {self.config['pipeline']['schedule_time']} PST")
                 print("   • Daily sync uses UPSERT to handle duplicate IDs properly")
             else:
@@ -1249,6 +1376,7 @@ def main():
         print("  • No duplicate IDs in daily sync")
         print("  • Primary key constraints on all tables")
         print("  • Temporary tables for efficient MERGE operations")
+        print("  • Proper JSON handling for detail fields")
         return
     
     command = sys.argv[1].lower()
